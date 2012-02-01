@@ -1,0 +1,52 @@
+LOPhone Web API
+
+Name: ListModems
+API: /lophone/listmodems
+Description: List modem devices.
+Return value: Modem device path list. (200 OK)
+
+Name: GetModemInfo
+API: /lophone/getmodeminfo?modem=MODEMPATH
+Description: Get modem information.
+Arguments:
+	modem: modem device path. (/org/freedesktop/ModemManager/Modems/0)
+Return value: Modem device information. (200 OK | 400 Bad Request)
+
+Name: GetModemStatus
+API: /lophone/getmodemstatus?modem=MODEMPATH
+Description: Get modem status.
+Arguments:
+	modem: modem device path. (/org/freedesktop/ModemManager/Modems/0)
+Return value: Modem phone status. [idle|callingin|callingout|connected]
+				(200 OK | 400 Bad Request | 500 Internal Server Error)
+
+Name: PhoneCall
+API: /lophone/phonecall?modem=MODEMPATH&number=NUMBER
+Description: Make a phone call.
+Arguments:
+	modem: modem device path. (/org/freedesktop/ModemManager/Modems/0)
+	number: phone number.
+Return value: Status code. (200 OK | 400 Bad Request | 500 Internal Server Error)
+
+Name: PhoneEnd
+API: /lophone/phoneend?modem=MODEMPATH
+Description: Make a phone end.
+Arguments:
+	modem: modem device path. (/org/freedesktop/ModemManager/Modems/0)
+Return value: Status code. (200 OK | 400 Bad Request | 500 Internal Server Error)
+
+Name: PhoneAnswer
+API: /lophone/phoneanswer?modem=MODEMPATH
+Description: Make a phone answer.
+Arguments:
+	modem: modem device path. (/org/freedesktop/ModemManager/Modems/0)
+Return value: Status code. (200 OK | 400 Bad Request | 500 Internal Server Error)
+
+Name: PhoneSendDTMF
+API: /lophone/phonesenddtmf?modem=MODEMPATH&digit=CODE
+Description: Make a phone answer.
+Arguments:
+	modem: modem device path. (/org/freedesktop/ModemManager/Modems/0)
+	digit: DTMF code.
+Return value: Status code. (200 OK | 400 Bad Request | 500 Internal Server Error)
+
