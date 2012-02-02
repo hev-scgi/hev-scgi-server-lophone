@@ -684,16 +684,20 @@ static void hev_scgi_handler_modem_cdma_phone_get_status_async_handler(GObject *
 			if(1 == g_variant_get_uint32(dir))
 			{
 				if(0 == g_variant_get_uint32(state))
-				  g_string_printf(outbuffer, "connected");
+				  g_string_printf(outbuffer, "connected\r\n%s",
+							  g_variant_get_string(number, NULL));
 				else
-				  g_string_printf(outbuffer, "callingin");
+				  g_string_printf(outbuffer, "callingin\r\n%s",
+							  g_variant_get_string(number, NULL));
 			}
 			else
 			{
 				if(0 == g_variant_get_uint32(state))
-				  g_string_printf(outbuffer, "connected");
+				  g_string_printf(outbuffer, "connected\r\n%s",
+							  g_variant_get_string(number, NULL));
 				else
-				  g_string_printf(outbuffer, "callingout");
+				  g_string_printf(outbuffer, "callingout\r\n%s",
+							  g_variant_get_string(number, NULL));
 			}
 		}
 
