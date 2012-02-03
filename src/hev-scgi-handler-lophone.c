@@ -1143,11 +1143,18 @@ static void hev_scgi_handler_modem_cdma_phone_g_signal_handler(GDBusProxy *proxy
 
 static gboolean hev_scgi_handler_timeout_handler(gpointer user_data)
 {
-	GObject *scgi_task = G_OBJECT(user_data);
-	gulong *handler = g_object_get_data(scgi_task, "handler");
-	GObject *cdma_phone = g_object_get_data(scgi_task, "cdma_phone");
+	GObject *scgi_task = NULL;
+	gulong *handler = NULL;
+	GObject *cdma_phone = NULL;
 
 	g_debug("%s:%d[%s]", __FILE__, __LINE__, __FUNCTION__);
+
+	if(!G_IS_OBJECT(scgi_task))
+	  return FALSE;
+
+	scgi_task = G_OBJECT(user_data);
+	handler = g_object_get_data(scgi_task, "handler");
+	cdma_phone = g_object_get_data(scgi_task, "cdma_phone");
 
 	if(handler)
 	  g_signal_handler_disconnect(cdma_phone, *handler);
