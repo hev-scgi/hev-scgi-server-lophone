@@ -32,6 +32,8 @@ static void hev_scgi_handler_modem_get_info_async_handler(GObject *source_object
 			GAsyncResult *res, gpointer user_data);
 static void hev_scgi_handler_modem_cdma_phone_get_status_async_handler(GObject *source_object,
 			GAsyncResult *res, gpointer user_data);
+static void hev_scgi_handler_modem_cdma_phone_lp_get_status_async_handler(GObject *source_object,
+			GAsyncResult *res, gpointer user_data);
 static void hev_scgi_handler_modem_cdma_phone_call_async_handler(GObject *source_object,
 			GAsyncResult *res, gpointer user_data);
 static void hev_scgi_handler_modem_cdma_phone_end_async_handler(GObject *source_object,
@@ -42,6 +44,9 @@ static void hev_scgi_handler_modem_cdma_phone_get_status_id_async_handler(GObjec
 			GAsyncResult *res, gpointer user_data);
 static void hev_scgi_handler_modem_cdma_phone_send_dtmf_async_handler(GObject *source_object,
 			GAsyncResult *res, gpointer user_data);
+static void hev_scgi_handler_modem_cdma_phone_g_signal_handler(GDBusProxy *proxy,
+			gchar *sender_name, gchar *signal_name,	GVariant *parameters, gpointer user_data);
+static gboolean hev_scgi_handler_timeout_handler(gpointer user_data);
 
 G_MODULE_EXPORT gboolean hev_scgi_handler_module_init(HevSCGIHandler *self)
 {
@@ -252,6 +257,81 @@ G_MODULE_EXPORT void hev_scgi_handler_module_handle(HevSCGIHandler *self, GObjec
 							hev_scgi_handler_res_write_header_handler, scgi_task);
 				g_object_ref(scgi_task);
 			}
+
+			g_match_info_free(match_info);
+		}
+		else
+		{
+			hev_scgi_handler_res_set_header(res_hash_table,
+						"400 Bad Request");
+			g_string_printf(outbuffer, "400 Bad Request");
+			hev_scgi_response_write_header(HEV_SCGI_RESPONSE(scgi_response),
+						hev_scgi_handler_res_write_header_handler, scgi_task);
+			g_object_ref(scgi_task);
+		}
+		g_regex_unref(regex);
+	}
+	/* GetModemStatus (Long Polling) */
+	else if(g_regex_match_simple("^/lophone/lpgetmodemstatus$",
+					document_uri, 0, 0))
+	{
+		GString *outbuffer = g_string_new(NULL);
+		GRegex *regex = NULL;
+		GMatchInfo *match_info = NULL;
+
+		g_object_set_data(scgi_task, "outbuffer", outbuffer);
+
+		regex = g_regex_new("^modem=([/\\w]+)&status=(\\w+)&?", 0, 0, NULL);
+		if(g_regex_match(regex, query_string, 0, &match_info))
+		{
+			gchar *path = g_match_info_fetch(match_info, 1);
+			gchar *status = g_match_info_fetch(match_info, 2);
+
+			if(path && status)
+			{
+				GObject *modem = NULL;
+				
+				modem = hev_lophone_lookup_modem(HEV_LOPHONE(lophone),
+							path);
+				if(modem)
+				{
+					static gchar buffer[16];
+					GObject *cdma_phone = NULL;
+					guint *timeout = g_malloc(sizeof(guint));
+
+					cdma_phone = hev_modem_get_cdma_phone(HEV_MODEM(modem));
+					g_object_set_data_full(scgi_task, "status", status,
+								g_free);
+					g_object_set_data_full(scgi_task, "timeout", timeout,
+								g_free);
+					*timeout = g_timeout_add(30 * 1000,
+								hev_scgi_handler_timeout_handler, scgi_task);
+					hev_modem_cdma_phone_get_status(HEV_MODEM_CDMA_PHONE(cdma_phone), NULL,
+								hev_scgi_handler_modem_cdma_phone_lp_get_status_async_handler,
+								scgi_task);
+					g_object_ref(scgi_task);
+				}
+				else
+				{
+					hev_scgi_handler_res_set_header(res_hash_table,
+								"400 Bad Request");
+					g_string_printf(outbuffer, "400 Bad Request");
+					hev_scgi_response_write_header(HEV_SCGI_RESPONSE(scgi_response),
+								hev_scgi_handler_res_write_header_handler, scgi_task);
+					g_object_ref(scgi_task);
+				}
+			}
+			else
+			{
+				hev_scgi_handler_res_set_header(res_hash_table,
+							"400 Bad Request");
+				g_string_printf(outbuffer, "400 Bad Request");
+				hev_scgi_response_write_header(HEV_SCGI_RESPONSE(scgi_response),
+							hev_scgi_handler_res_write_header_handler, scgi_task);
+				g_object_ref(scgi_task);
+			}
+
+			g_free(path);
 
 			g_match_info_free(match_info);
 		}
@@ -714,6 +794,104 @@ static void hev_scgi_handler_modem_cdma_phone_get_status_async_handler(GObject *
 				hev_scgi_handler_res_write_header_handler, scgi_task);
 }
 
+static void hev_scgi_handler_modem_cdma_phone_lp_get_status_async_handler(GObject *source_object,
+			GAsyncResult *res, gpointer user_data)
+{
+	GObject *scgi_task = G_OBJECT(user_data);
+	GObject *scgi_response = NULL;
+	GHashTable *res_hash_table = NULL;
+	GVariant *retval = NULL;
+	GString *outbuffer = NULL;
+	gchar *status = NULL, *new_status = NULL;
+
+	g_debug("%s:%d[%s]", __FILE__, __LINE__, __FUNCTION__);
+
+	scgi_response = hev_scgi_task_get_response(HEV_SCGI_TASK(scgi_task));
+	res_hash_table =
+		hev_scgi_response_get_header_hash_table(HEV_SCGI_RESPONSE(scgi_response));
+	outbuffer = g_object_get_data(scgi_task, "outbuffer");
+	status = g_object_get_data(scgi_task, "status");
+	retval = hev_modem_cdma_phone_get_status_finish(HEV_MODEM_CDMA_PHONE(source_object),
+				res, NULL);
+	if(retval)
+	{
+		GVariant *values = NULL;
+		GVariant *dir = NULL, *state = NULL;
+		GVariant *number = NULL, *priority = NULL;
+
+		values = g_variant_get_child_value(retval, 0);
+		dir = g_variant_lookup_value(values, "dir", NULL);
+		state = g_variant_lookup_value(values, "state", NULL);
+		number = g_variant_lookup_value(values, "number", NULL);
+		priority = g_variant_lookup_value(values, "priority", NULL);
+
+		if((0==strlen(g_variant_get_string(number, NULL))) &&
+					(0==g_variant_get_uint32(priority)))
+		{
+			new_status = "idle";
+			g_string_printf(outbuffer, "idle");
+		}
+		else
+		{
+			if(1 == g_variant_get_uint32(dir))
+			{
+				if(0 == g_variant_get_uint32(state))
+				{
+					new_status = "connected";
+					g_string_printf(outbuffer, "connected");
+				}
+				else
+				{
+					new_status = "callingin";
+					g_string_printf(outbuffer, "callingin");
+				}
+			}
+			else
+			{
+				if(0 == g_variant_get_uint32(state))
+				{
+					new_status = "connected";
+					g_string_printf(outbuffer, "connected");
+				}
+				else
+				{
+					new_status = "callingout";
+					g_string_printf(outbuffer, "callingout");
+				}
+			}
+		}
+
+		if(0 == g_strcmp0(status, new_status))
+		{
+			gulong *handler = g_malloc0(sizeof(gulong));
+
+			*handler = g_signal_connect(source_object, "g-signal",
+						G_CALLBACK(hev_scgi_handler_modem_cdma_phone_g_signal_handler),
+						scgi_task);
+			g_object_set_data(scgi_task, "cdma_phone", source_object);
+			g_object_set_data_full(scgi_task, "handler", handler, g_free);
+		}
+		else
+		{
+			hev_scgi_handler_res_set_header(res_hash_table,
+						"200 OK");
+			hev_scgi_response_write_header(HEV_SCGI_RESPONSE(scgi_response),
+						hev_scgi_handler_res_write_header_handler, scgi_task);
+		}
+
+		g_variant_unref(retval);
+	}
+	else
+	{
+		hev_scgi_handler_res_set_header(res_hash_table,
+					"500 Internal Server Error");
+		g_string_printf(outbuffer, "500 Internal Server Error");
+
+		hev_scgi_response_write_header(HEV_SCGI_RESPONSE(scgi_response),
+					hev_scgi_handler_res_write_header_handler, scgi_task);
+	}
+}
+
 static void hev_scgi_handler_modem_cdma_phone_call_async_handler(GObject *source_object,
 			GAsyncResult *res, gpointer user_data)
 {
@@ -906,5 +1084,76 @@ static void hev_scgi_handler_modem_cdma_phone_send_dtmf_async_handler(GObject *s
 
 	hev_scgi_response_write_header(HEV_SCGI_RESPONSE(scgi_response),
 				hev_scgi_handler_res_write_header_handler, scgi_task);
+}
+
+static void hev_scgi_handler_modem_cdma_phone_g_signal_handler(GDBusProxy *proxy,
+			gchar *sender_name, gchar *signal_name,	GVariant *parameters, gpointer user_data)
+{
+	GObject *scgi_task = G_OBJECT(user_data);
+	GObject *scgi_response = NULL;
+	GHashTable *res_hash_table = NULL;
+	gulong *handler = g_object_get_data(scgi_task, "handler");
+	guint *timeout = g_object_get_data(scgi_task, "timeout");
+	GString *outbuffer = g_object_get_data(scgi_task, "outbuffer");
+
+	g_debug("%s:%d[%s]", __FILE__, __LINE__, __FUNCTION__);
+
+	g_signal_handler_disconnect(proxy, *handler);
+	if(timeout)
+	  g_source_remove(*timeout);
+
+	scgi_response = hev_scgi_task_get_response(HEV_SCGI_TASK(scgi_task));
+	res_hash_table =
+		hev_scgi_response_get_header_hash_table(HEV_SCGI_RESPONSE(scgi_response));
+
+	if(0==g_strcmp0(signal_name, "Ring") ||
+				(0==g_strcmp0(signal_name, "Clip")))
+	{
+		hev_scgi_handler_res_set_header(res_hash_table,
+					"200 OK");
+		g_string_printf(outbuffer, "callingin");
+	}
+	else if(0 == g_strcmp0(signal_name, "Orig"))
+	{
+		hev_scgi_handler_res_set_header(res_hash_table,
+					"200 OK");
+		g_string_printf(outbuffer, "callingout");
+	}
+	else if(0 == g_strcmp0(signal_name, "Conn"))
+	{
+		hev_scgi_handler_res_set_header(res_hash_table,
+					"200 OK");
+		g_string_printf(outbuffer, "connected");
+	}
+	else if(0 == g_strcmp0(signal_name, "Cend"))
+	{
+		hev_scgi_handler_res_set_header(res_hash_table,
+					"200 OK");
+		g_string_printf(outbuffer, "idle");
+	}
+	else
+	{
+		hev_scgi_handler_res_set_header(res_hash_table,
+					"500 Internal Server Error");
+	}
+
+	hev_scgi_response_write_header(HEV_SCGI_RESPONSE(scgi_response),
+				hev_scgi_handler_res_write_header_handler, scgi_task);
+}
+
+static gboolean hev_scgi_handler_timeout_handler(gpointer user_data)
+{
+	GObject *scgi_task = G_OBJECT(user_data);
+	gulong *handler = g_object_get_data(scgi_task, "handler");
+	GObject *cdma_phone = g_object_get_data(scgi_task, "cdma_phone");
+
+	g_debug("%s:%d[%s]", __FILE__, __LINE__, __FUNCTION__);
+
+	if(handler)
+	  g_signal_handler_disconnect(cdma_phone, *handler);
+
+	g_object_unref(scgi_task);
+
+	return FALSE;
 }
 
