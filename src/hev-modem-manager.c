@@ -50,6 +50,8 @@ static GObject * hev_modem_manager_constructor(GType type, guint n, GObjectConst
 static void hev_modem_manager_constructed(GObject * obj)
 {
 	g_debug("%s:%d[%s]", __FILE__, __LINE__, __FUNCTION__);
+
+	G_OBJECT_CLASS(hev_modem_manager_parent_class)->constructed(obj);
 }
 
 static void hev_modem_manager_class_init(HevModemManagerClass * klass)

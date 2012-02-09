@@ -50,6 +50,8 @@ static GObject * hev_modem_cdma_phone_constructor(GType type, guint n, GObjectCo
 static void hev_modem_cdma_phone_constructed(GObject * obj)
 {
 	g_debug("%s:%d[%s]", __FILE__, __LINE__, __FUNCTION__);
+
+	G_OBJECT_CLASS(hev_modem_cdma_phone_parent_class)->constructed(obj);
 }
 
 static void hev_modem_cdma_phone_class_init(HevModemCdmaPhoneClass * klass)

@@ -66,6 +66,8 @@ static void hev_modem_constructed(GObject * obj)
 
 	g_debug("%s:%d[%s]", __FILE__, __LINE__, __FUNCTION__);
 
+	G_OBJECT_CLASS(hev_modem_parent_class)->constructed(obj);
+
 	g_object_get(G_OBJECT(self), "g-connection",
 				&connection, "g-object-path",
 				&obj_path, NULL);

@@ -90,6 +90,8 @@ static GObject * hev_lophone_constructor(GType type, guint n, GObjectConstructPa
 static void hev_lophone_constructed(GObject * obj)
 {
 	g_debug("%s:%d[%s]", __FILE__, __LINE__, __FUNCTION__);
+
+	G_OBJECT_CLASS(hev_lophone_parent_class)->constructed(obj);
 }
 
 static void hev_lophone_class_init(HevLOPhoneClass * klass)
