@@ -127,9 +127,9 @@ G_MODULE_EXPORT void hev_scgi_handler_module_handle(HevSCGIHandler *self, GObjec
 		GString *outbuffer = g_string_new(NULL);
 		GList *l = NULL, *list = NULL;
 
-		g_hash_table_insert(res_hash_table, "Status",
+		g_hash_table_insert(res_hash_table, g_strdup("Status"),
 					g_strdup("200 OK"));
-		g_hash_table_insert(res_hash_table, "Content-Type",
+		g_hash_table_insert(res_hash_table, g_strdup("Content-Type"),
 					g_strdup("text/plain"));
 
 		list = hev_lophone_get_modems(HEV_LOPHONE(lophone));
@@ -633,9 +633,9 @@ static void hev_scgi_handler_res_set_header(GHashTable *hash_table, const gchar 
 {
 	g_debug("%s:%d[%s]", __FILE__, __LINE__, __FUNCTION__);
 
-	g_hash_table_insert(hash_table, "Status",
+	g_hash_table_insert(hash_table, g_strdup("Status"),
 				g_strdup(status));
-	g_hash_table_insert(hash_table, "Content-Type",
+	g_hash_table_insert(hash_table, g_strdup("Content-Type"),
 				g_strdup("text/plain"));
 }
 
